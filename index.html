@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 LED Controller</title>
+    
+    <!-- CSS TÙY CHỈNH ĐỂ KHÔNG CẦN INTERNET -->
+    <style>
+        /* Thiết lập cơ bản cho mobile-first và Dark Mode */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a; 
+            color: #f0f0f0; 
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #2c2c2c; 
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px; 
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #4CAF50; 
+        }
+
+        /* Nút Kết nối */
+        #connectButton {
+            width: 100%;
+            background-color: #3b82f6; 
+            color: white;
+            font-weight: bold;
+            padding: 12px;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+            border: none;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+        #connectButton:hover {
+            background-color: #2563eb; 
+        }
+        #connectButton:disabled {
+            background-color: #4b5563; 
+            cursor: not-allowed;
+        }
+        #status {
+            text-align: center;
+            font-size: 0.875rem;
+            color: #9ca3af; 
+            margin-bottom: 20px;
+        }
+
+        /* Demo Màu */
+        #colorPreview {
+            width: 100%;
+            height: 96px;
+            border-radius: 8px;
+            border: 4px solid #4b5563;
+            background-color: #000;
+            transition: background-color 0.2s;
+            margin-bottom: 24px;
+        }
+
+        /* Thanh trượt chung */
+        .slider-group {
+            margin-bottom: 16px;
+        }
+        .slider-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            margin-bottom: 4px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: #4b5563;
+            border-radius: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+        /* Thumb (Núm kéo) */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            cursor: pointer;
+            border: 3px solid #1a1a1a;
+        }
+
+        /* Màu riêng cho từng thanh trượt */
+        #redSlider::-webkit-slider-thumb { background: red; }
+        #greenSlider::-webkit-slider-thumb { background: green; }
+        #blueSlider::-webkit-slider-thumb { background: blue; }
+        #brightnessSlider::-webkit-slider-thumb { background: white; }
+
+        /* Công tắc (Toggle Switch) */
+        .toggle-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #374151; 
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .toggle-container {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+            margin-right: 8px;
+        }
+        .toggle-checkbox {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-label {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4b5563; 
+            transition: 0.4s;
+            border-radius: 24px;
+        }
+        .toggle-label:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #3b82f6; 
+        }
+        .toggle-checkbox:checked + .toggle-label:before {
+            transform: translateX(16px);
+        }
+
+        /* Vô hiệu hóa điều khiển */
+        #controls.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body ontouchstart="">
+
+    <div class="container">
+        
+        <h1>Điều khiển LED ESP32</h1>
+
+        <!-- Nút Kết nối -->
+        <button id="connectButton">
+            Kết nối Bluetooth
+        </button>
+        <div id="status">Chưa kết nối</div>
+
+        <!-- Khối điều khiển (vô hiệu hóa ban đầu) -->
+        <div id="controls" class="disabled">
+            
+            <!-- Demo Màu -->
+            <div class="slider-group">
+                <label class="block">Demo màu</label>
+                <div id="colorPreview"></div>
+            </div>
+
+            <!-- Thanh trượt -->
+            <div class="space-y-4 mb-6">
+                <!-- Red -->
+                <div class="slider-group">
+                    <label for="redSlider"><span>Đỏ</span><span id="redValue">0</span></label>
+                    <input type="range" id="redSlider" min="0" max="255" value="0">
+                </div>
+                <!-- Green -->
+                <div class="slider-group">
+                    <label for="greenSlider"><span>Xanh lá</span><span id="greenValue">0</span></label>
+                    <input type="range" id="greenSlider" min="0" max="255" value="0">
+                </div>
+                <!-- Blue -->
+                <div class="slider-group">
+                    <label for="blueSlider"><span>Xanh dương</span><span id="blueValue">0</span></label>
+                    <input type="range" id="blueSlider" min="0" max="255" value="0">
+                </div>
+                <!-- Brightness -->
+                <div class="slider-group">
+                    <label for="brightnessSlider"><span>Độ sáng</span><span id="brightnessValue">128</span></label>
+                    <input type="range" id="brightnessSlider" min="0" max="255" value="128">
+                </div>
+            </div>
+
+            <!-- Công tắc chế độ -->
+            <div class="space-y-3">
+                <!-- On/Off -->
+                <div class="toggle-item">
+                    <label for="onOffToggle">Bật / Tắt</label>
+                    <div class="toggle-container">
+                        <input type="checkbox" id="onOffToggle" class="toggle-checkbox" checked/>
+                        <label for="onOffToggle" class="toggle-label"></label>
+                    </div>
+                </div>
+                <!-- Rainbow Mode -->
+                <div class="toggle-item">
+                    <label for="rainbowToggle">Hiệu ứng Cầu vồng</label>
+                    <div class="toggle-container">
+                        <input type="checkbox" id="rainbowToggle" class="toggle-checkbox"/>
+                        <label for="rainbowToggle" class="toggle-label"></label>
+                    </div>
+                </div>
+                <!-- Auto Detect (PIR) -->
+                <div class="toggle-item">
+                    <label for="pirToggle">Tự động (PIR)</label>
+                    <div class="toggle-container">
+                        <input type="checkbox" id="pirToggle" class="toggle-checkbox"/>
+                        <label for="pirToggle" class="toggle-label"></label>
+                    </div>
+                </div>
+                <!-- Auto Light (Photodiode) -->
+                <div class="toggle-item">
+                    <label for="lightToggle">Tự động (Ánh sáng)</label>
+                    <div class="toggle-container">
+                        <input type="checkbox" id="lightToggle" class="toggle-checkbox"/>
+                        <label for="lightToggle" class="toggle-label"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // UUID từ mã Arduino (PHẢI CHÍNH XÁC VỚI ESP32)
+        const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const RGB_BRIGHTNESS_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        const MODE_CHAR_UUID = "a1e8f5b1-2529-473f-8169-b062c5e53b47"; // <--- UUID ĐÃ XÁC NHẬN
+
+        // Biến lưu trữ đặc tính BLE
+        let bleDevice = null;
+        let rgbCharacteristic = null;
+        let modeCharacteristic = null;
+        let isConnecting = false;
+
+        // Lấy các phần tử DOM
+        const connectButton = document.getElementById('connectButton');
+        const statusDiv = document.getElementById('status');
+        const controlsDiv = document.getElementById('controls');
+        
+        const colorPreview = document.getElementById('colorPreview');
+        const redSlider = document.getElementById('redSlider');
+        const greenSlider = document.getElementById('greenSlider');
+        const blueSlider = document.getElementById('blueSlider');
+        const brightnessSlider = document.getElementById('brightnessSlider');
+        
+        const redValue = document.getElementById('redValue');
+        const greenValue = document.getElementById('greenValue');
+        const blueValue = document.getElementById('blueValue');
+        const brightnessValue = document.getElementById('brightnessValue');
+
+        const onOffToggle = document.getElementById('onOffToggle');
+        const rainbowToggle = document.getElementById('rainbowToggle'); 
+        const pirToggle = document.getElementById('pirToggle');
+        const lightToggle = document.getElementById('lightToggle');
+
+        // Hàm cập nhật màu demo
+        function updateColorPreview() {
+            const r = redSlider.value;
+            const g = greenSlider.value;
+            const b = blueSlider.value;
+            colorPreview.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            
+            // Cập nhật giá trị text
+            redValue.textContent = r;
+            greenValue.textContent = g;
+            blueValue.textContent = b;
+            brightnessValue.textContent = brightnessSlider.value;
+
+            // Vô hiệu hóa/kích hoạt thanh trượt RGB khi ở chế độ Rainbow
+            const isRainbow = rainbowToggle.checked;
+            redSlider.disabled = isRainbow;
+            greenSlider.disabled = isRainbow;
+            blueSlider.disabled = isRainbow;
+            
+            // Làm mờ thanh trượt khi bị vô hiệu hóa
+            redSlider.style.opacity = isRainbow ? 0.3 : 1;
+            greenSlider.style.opacity = isRainbow ? 0.3 : 1;
+            blueSlider.style.opacity = isRainbow ? 0.3 : 1;
+        }
+
+        // Hàm gửi dữ liệu RGB và Độ sáng
+        async function sendRgbBrightness() {
+            if (!rgbCharacteristic || !bleDevice.gatt.connected) {
+                console.log('Chưa kết nối hoặc đặc tính không sẵn sàng.');
+                return;
+            }
+            try {
+                const r = parseInt(redSlider.value);
+                const g = parseInt(greenSlider.value);
+                const b = parseInt(blueSlider.value);
+                const brightness = parseInt(brightnessSlider.value);
+                
+                // DataBuffer 4 byte: R, G, B, Brightness
+                const data = new Uint8Array([r, g, b, brightness]);
+                await rgbCharacteristic.writeValue(data);
+                console.log('Đã gửi RGBB:', data);
+            } catch (error) {
+                console.error('Lỗi khi gửi dữ liệu RGBB:', error);
+                if (error.name === 'NetworkError') {
+                    onDisconnected();
+                }
+            }
+        }
+
+        // Hàm gửi dữ liệu Chế độ (4 bytes: OnOff, PIR, AutoLight, Rainbow)
+        async function sendModes() {
+            if (!modeCharacteristic || !bleDevice.gatt.connected) {
+                console.log('Chưa kết nối hoặc đặc tính không sẵn sàng.');
+                return;
+            }
+            try {
+                // 1 là true (Bật), 0 là false (Tắt)
+                const isOn = onOffToggle.checked ? 1 : 0;
+                const isPir = pirToggle.checked ? 1 : 0;
+                const isLight = lightToggle.checked ? 1 : 0;
+                const isRainbow = rainbowToggle.checked ? 1 : 0; 
+
+                // DataBuffer 4 byte
+                const data = new Uint8Array([isOn, isPir, isLight, isRainbow]);
+                await modeCharacteristic.writeValue(data);
+                console.log('Đã gửi Chế độ:', data);
+                updateColorPreview(); // Cập nhật trạng thái slider disabled
+            } catch (error) {
+                console.error('Lỗi khi gửi dữ liệu Chế độ:', error);
+                if (error.name === 'NetworkError') {
+                    onDisconnected();
+                }
+            }
+        }
+
+        // Xử lý khi ngắt kết nối
+        function onDisconnected() {
+            console.log('Đã ngắt kết nối.');
+            statusDiv.textContent = 'Đã ngắt kết nối';
+            connectButton.disabled = false;
+            connectButton.textContent = 'Kết nối Bluetooth';
+            isConnecting = false;
+            bleDevice = null;
+            rgbCharacteristic = null;
+            modeCharacteristic = null;
+
+            // Vô hiệu hóa điều khiển
+            controlsDiv.classList.add('disabled');
+        }
+
+        // Sự kiện click nút Kết nối 
+        connectButton.addEventListener('click', async () => {
+            if (isConnecting) return;
+
+            if (bleDevice && bleDevice.gatt.connected) {
+                bleDevice.gatt.disconnect();
+                onDisconnected(); 
+                return;
+            }
+
+            isConnecting = true;
+            statusDiv.textContent = 'Đang tìm thiết bị...';
+            connectButton.disabled = true;
+
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }],
+                });
+
+                statusDiv.textContent = `Đang kết nối tới ${bleDevice.name}...`;
+
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+
+                // Lấy các Đặc tính
+                rgbCharacteristic = await service.getCharacteristic(RGB_BRIGHTNESS_CHAR_UUID);
+                modeCharacteristic = await service.getCharacteristic(MODE_CHAR_UUID); // <--- LẤY ĐẶC TÍNH MODE
+
+                // KIỂM TRA LẠI: Nếu không tìm thấy characteristic, nó sẽ nhảy vào khối catch ngay.
+                
+                statusDiv.textContent = `Đã kết nối: ${bleDevice.name}`;
+                connectButton.textContent = 'Ngắt kết nối';
+                connectButton.disabled = false;
+                isConnecting = false;
+
+                // Kích hoạt điều khiển
+                controlsDiv.classList.remove('disabled');
+                
+                // Gửi trạng thái ban đầu
+                updateColorPreview();
+                sendRgbBrightness();
+                sendModes();
+
+            } catch (error) {
+                console.error('Lỗi kết nối:', error);
+                // Hiển thị lỗi ra UI
+                statusDiv.textContent = `Lỗi: ${error.message.split(' (')[0]}`;
+                connectButton.disabled = false;
+                connectButton.textContent = 'Kết nối Bluetooth';
+                isConnecting = false;
+            }
+        });
+
+        // Xử lý sự kiện thanh trượt
+        [redSlider, greenSlider, blueSlider, brightnessSlider].forEach(slider => {
+            slider.addEventListener('input', updateColorPreview);
+            slider.addEventListener('change', sendRgbBrightness);
+        });
+
+        // Xử lý sự kiện công tắc
+        onOffToggle.addEventListener('change', sendModes);
+        rainbowToggle.addEventListener('change', handleAutoModeToggle); 
+        pirToggle.addEventListener('change', handleAutoModeToggle); 
+        lightToggle.addEventListener('change', handleAutoModeToggle); 
+
+        // Hàm xử lý logic: chỉ cho phép 1 chế độ tự động (hoặc Rainbow) được bật
+        function handleAutoModeToggle(e) {
+            const toggles = [pirToggle, lightToggle, rainbowToggle];
+
+            // Nếu một nút được bật, tắt các nút còn lại
+            if (e.target.checked) {
+                toggles.forEach(toggle => {
+                    if (toggle !== e.target) {
+                        toggle.checked = false;
+                    }
+                });
+            }
+            sendModes();
+        }
+        
+        updateColorPreview();
+
+    </script>
+</body>
+</html>
